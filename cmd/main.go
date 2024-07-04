@@ -8,6 +8,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+//fuck
+
 const (
 	port = ":9999"
 )
