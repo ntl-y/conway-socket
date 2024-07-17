@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	color      = []byte{byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Float64())}
+	cellColor  = []byte{byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Float64())}
 	background = byte(0)
 )
 
@@ -39,6 +39,10 @@ func NewWorld(width int, height int) *World {
 	return w
 }
 
+func indexOfPixel(x, y, screenWidth int) int {
+	return (y*screenWidth + x) * 4
+}
+
 func (w *World) Update(pix []byte) {
 	for y := 0; y < w.height; y++ {
 		for x := 0; x < w.width; x++ {
@@ -62,7 +66,7 @@ func (w *World) Update(pix []byte) {
 }
 
 func status(pix []byte, x int, y int, width int) bool {
-	return pix[indexOfPixel(x, y, width)] == color[0]
+	return pix[indexOfPixel(x, y, width)] == cellColor[0]
 }
 
 func countNeighbours(pix []byte, x int, y int, width int, height int) int {
@@ -79,7 +83,7 @@ func countNeighbours(pix []byte, x int, y int, width int, height int) int {
 		nx, ny := x+dir[0], y+dir[1]
 		if nx >= 0 && nx < width && ny >= 0 && ny < height {
 			index := indexOfPixel(nx, ny, width)
-			if pix[index] == color[0] {
+			if pix[index] == cellColor[0] {
 				neighbours++
 			}
 		}
@@ -98,14 +102,10 @@ func (w *World) Draw(pix []byte) {
 }
 
 func (w *World) paint(pix []byte, pixelIndex int) {
-	pix[pixelIndex] = color[0]
-	pix[pixelIndex+1] = color[1]
-	pix[pixelIndex+2] = color[2]
-	pix[pixelIndex+3] = color[3]
-}
-
-func indexOfPixel(x, y, screenWidth int) int {
-	return (y*screenWidth + x) * 4
+	pix[pixelIndex] = cellColor[0]
+	pix[pixelIndex+1] = cellColor[1]
+	pix[pixelIndex+2] = cellColor[2]
+	pix[pixelIndex+3] = cellColor[3]
 }
 
 type Game struct {
@@ -124,13 +124,15 @@ func (g *Game) paint() {
 
 func (g *Game) Update() error {
 	g.paint()
-	//g.world.Update(g.pixels)
+	g.world.Update(g.pixels)
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-
-	g.world.Draw(g.pixels)
+	if g.pixels == nil {
+		g.pixels = make([]byte, screenWidth*screenHeight*4)
+		g.world.Draw(g.pixels)
+	}
 	screen.WritePixels(g.pixels)
 }
 
@@ -142,7 +144,7 @@ func main() {
 	ebiten.SetWindowSize(screenFrameWidth, screenFrameHeight)
 	ebiten.SetWindowTitle("pixel")
 
-	game := &Game{world: NewWorld(screenWidth, screenHeight), pixels: make([]byte, screenWidth*screenHeight*4)}
+	game := &Game{world: NewWorld(screenWidth, screenHeight)}
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
