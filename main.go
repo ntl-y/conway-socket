@@ -1,24 +1,22 @@
 package main
 
 import (
-	"bytes"
-	"image"
 	_ "image/jpeg"
 	"log"
 	"math"
-	"os"
+	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-const (
-	screenWidth            = 640
-	screenHeight           = 480
-	maxLiveCellsPercentage = 0.1
-)
+var color = []byte{byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Float64())}
 
-var (
-	catKiss *ebiten.Image
+const (
+	screenFrameWidth       = 640
+	screenFrameHeight      = 480
+	screenWidth            = 128
+	screenHeight           = 96
+	maxLiveCellsPercentage = 0.1
 )
 
 type World struct {
@@ -42,27 +40,39 @@ func (w *World) Update() {
 
 }
 
-func (w *World) Draw() {
-
+func (w *World) Draw(pix []byte) {
+	for i := range w.area {
+		randomBool := rand.Intn(2) == 1
+		if randomBool {
+			pix[4*i] = color[0]
+			pix[4*i+1] = color[1]
+			pix[4*i+2] = color[2]
+			pix[4*i+3] = color[3]
+		} else {
+			pix[4*i] = 0
+			pix[4*i+1] = 0
+			pix[4*i+2] = 0
+			pix[4*i+3] = 0
+		}
+	}
 }
 
 type Game struct {
-	count int
+	world  *World
+	pixels []byte
 }
 
 func (g *Game) Update() error {
-	g.count++
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	s := catKiss.Bounds().Size()
-	op := &ebiten.DrawImageOptions{}
+	if g.pixels == nil {
+		g.pixels = make([]byte, screenWidth*screenHeight*4)
+		g.world.Draw(g.pixels)
 
-	op.GeoM.Translate(-float64(s.X)/2, -float64(s.Y)/2)
-	op.GeoM.Translate(screenWidth/2, screenHeight/2)
-
-	screen.DrawImage(catKiss, op)
+	}
+	screen.WritePixels(g.pixels)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -70,21 +80,10 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
-	ebiten.SetWindowSize(screenWidth, screenHeight)
-	ebiten.SetWindowTitle("kitties kissing!")
+	ebiten.SetWindowSize(screenFrameWidth, screenFrameHeight)
+	ebiten.SetWindowTitle("pixel")
 
-	catBytes, err := os.ReadFile("images/cat_love_30.jpg")
-	if err != nil {
-		log.Fatal(err)
-	}
-	img, _, err := image.Decode(bytes.NewReader(catBytes))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	catKiss = ebiten.NewImageFromImage(img)
-
-	game := &Game{}
+	game := &Game{world: NewWorld(screenWidth, screenHeight)}
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
