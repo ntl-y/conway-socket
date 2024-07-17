@@ -9,7 +9,10 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-var color = []byte{byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Float64())}
+var (
+	color      = []byte{byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Float64())}
+	background = byte(0)
+)
 
 const (
 	screenFrameWidth       = 640
@@ -36,25 +39,73 @@ func NewWorld(width int, height int) *World {
 	return w
 }
 
-func (w *World) Update() {
+func (w *World) Update(pix []byte) {
+	for y := 0; y < w.height; y++ {
+		for x := 0; x < w.width; x++ {
+			index := indexOfPixel(x, y, w.width)
+			neighbourAmount := countNeighbours(pix, x, y, w.width, w.height)
+			isLiving := status(pix, x, y, w.width)
+			switch {
+			case isLiving && (neighbourAmount == 2 || neighbourAmount == 3):
+				w.paint(pix, index)
+			case !isLiving && neighbourAmount == 3:
+				w.paint(pix, index)
+			default:
+				pix[index] = background
+				pix[index+1] = background
+				pix[index+2] = background
+				pix[index+3] = background
 
+			}
+		}
+	}
+}
+
+func status(pix []byte, x int, y int, width int) bool {
+	return pix[indexOfPixel(x, y, width)] == color[0]
+}
+
+func countNeighbours(pix []byte, x int, y int, width int, height int) int {
+	neighbours := 0
+
+	directions := [][2]int{
+		{0, 1},  // north
+		{0, -1}, //south
+		{-1, 0}, // west
+		{1, 0},  //east
+	}
+
+	for _, dir := range directions {
+		nx, ny := x+dir[0], y+dir[1]
+		if nx >= 0 && nx < width && ny >= 0 && ny < height {
+			index := indexOfPixel(nx, ny, width)
+			if pix[index] == color[0] {
+				neighbours++
+			}
+		}
+
+	}
+	return neighbours
 }
 
 func (w *World) Draw(pix []byte) {
 	for i := range w.area {
-		randomBool := rand.Intn(2) == 1
-		if randomBool {
-			pix[4*i] = color[0]
-			pix[4*i+1] = color[1]
-			pix[4*i+2] = color[2]
-			pix[4*i+3] = color[3]
-		} else {
-			pix[4*i] = 0
-			pix[4*i+1] = 0
-			pix[4*i+2] = 0
-			pix[4*i+3] = 0
-		}
+		pix[4*i] = background
+		pix[4*i+1] = background
+		pix[4*i+2] = background
+		pix[4*i+3] = background
 	}
+}
+
+func (w *World) paint(pix []byte, pixelIndex int) {
+	pix[pixelIndex] = color[0]
+	pix[pixelIndex+1] = color[1]
+	pix[pixelIndex+2] = color[2]
+	pix[pixelIndex+3] = color[3]
+}
+
+func indexOfPixel(x, y, screenWidth int) int {
+	return (y*screenWidth + x) * 4
 }
 
 type Game struct {
@@ -62,16 +113,24 @@ type Game struct {
 	pixels []byte
 }
 
+func (g *Game) paint() {
+	mx, my := ebiten.CursorPosition()
+
+	currPixel := indexOfPixel(mx, my, g.world.width)
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && g.pixels[currPixel] == 0 {
+		g.world.paint(g.pixels, currPixel)
+	}
+}
+
 func (g *Game) Update() error {
+	g.paint()
+	//g.world.Update(g.pixels)
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	if g.pixels == nil {
-		g.pixels = make([]byte, screenWidth*screenHeight*4)
-		g.world.Draw(g.pixels)
 
-	}
+	g.world.Draw(g.pixels)
 	screen.WritePixels(g.pixels)
 }
 
@@ -83,7 +142,7 @@ func main() {
 	ebiten.SetWindowSize(screenFrameWidth, screenFrameHeight)
 	ebiten.SetWindowTitle("pixel")
 
-	game := &Game{world: NewWorld(screenWidth, screenHeight)}
+	game := &Game{world: NewWorld(screenWidth, screenHeight), pixels: make([]byte, screenWidth*screenHeight*4)}
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
