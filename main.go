@@ -19,8 +19,25 @@ const (
 	screenFrameHeight      = 480
 	screenWidth            = 128
 	screenHeight           = 96
-	maxLiveCellsPercentage = 0.1
+	maxLiveCellsPercentage = 0.5
 )
+
+func indexOfPixel(x, y, screenWidth int) int {
+	return (y*screenWidth + x) * 4
+}
+
+func pixelToCoords(index, screenWidth int) (int, int) {
+	pixelIndex := index / 4
+
+	y := pixelIndex / screenWidth
+	x := pixelIndex % screenWidth
+
+	return x, y
+}
+
+func indexInArea(x, y, width int) int {
+	return y*width + x
+}
 
 type World struct {
 	width        int
@@ -36,40 +53,53 @@ func NewWorld(width int, height int) *World {
 		area:         make([]bool, width*height),
 		maxLiveCells: int(math.Round(maxLiveCellsPercentage * float64(width) * float64(height))),
 	}
+
+	/////
+	for i := 0; i < w.maxLiveCells; i++ {
+		x := rand.Intn(width)
+		y := rand.Intn(height)
+		w.area[indexInArea(x, y, width)] = true
+	}
+	/////
 	return w
 }
 
-func indexOfPixel(x, y, screenWidth int) int {
-	return (y*screenWidth + x) * 4
-}
-
-func (w *World) Update(pix []byte) {
-	for y := 0; y < w.height; y++ {
-		for x := 0; x < w.width; x++ {
-			index := indexOfPixel(x, y, w.width)
-			neighbourAmount := countNeighbours(pix, x, y, w.width, w.height)
-			isLiving := status(pix, x, y, w.width)
-			switch {
-			case isLiving && (neighbourAmount == 2 || neighbourAmount == 3):
-				w.paint(pix, index)
-			case !isLiving && neighbourAmount == 3:
-				w.paint(pix, index)
-			default:
-				pix[index] = background
-				pix[index+1] = background
-				pix[index+2] = background
-				pix[index+3] = background
-
-			}
+func (w *World) Draw(pix []byte) {
+	for i, v := range w.area {
+		if v {
+			w.paint(pix, i*4)
+		} else {
+			w.erase(pix, i*4)
 		}
 	}
 }
 
-func status(pix []byte, x int, y int, width int) bool {
-	return pix[indexOfPixel(x, y, width)] == cellColor[0]
+func (w *World) paint(pix []byte, pixelIndex int) {
+	if len(pix) > 0 {
+		x, y := pixelToCoords(pixelIndex, w.width)
+		w.area[indexInArea(x, y, w.width)] = true
+
+		pix[pixelIndex] = cellColor[0]
+		pix[pixelIndex+1] = cellColor[1]
+		pix[pixelIndex+2] = cellColor[2]
+		pix[pixelIndex+3] = cellColor[3]
+	}
 }
 
-func countNeighbours(pix []byte, x int, y int, width int, height int) int {
+func (w *World) erase(pix []byte, pixelIndex int) {
+
+	if len(pix) > 0 {
+		x, y := pixelToCoords(pixelIndex, w.width)
+		w.area[indexInArea(x, y, w.width)] = false
+
+		pix[pixelIndex] = background
+		pix[pixelIndex+1] = background
+		pix[pixelIndex+2] = background
+		pix[pixelIndex+3] = background
+	}
+}
+
+func countNeighbours(area []bool, x int, y int, width int, height int) int {
 	neighbours := 0
 
 	directions := [][2]int{
@@ -82,30 +112,39 @@ func countNeighbours(pix []byte, x int, y int, width int, height int) int {
 	for _, dir := range directions {
 		nx, ny := x+dir[0], y+dir[1]
 		if nx >= 0 && nx < width && ny >= 0 && ny < height {
-			index := indexOfPixel(nx, ny, width)
-			if pix[index] == cellColor[0] {
+			index := indexInArea(nx, ny, width)
+			if area[index] {
 				neighbours++
 			}
 		}
-
 	}
 	return neighbours
 }
 
-func (w *World) Draw(pix []byte) {
-	for i := range w.area {
-		pix[4*i] = background
-		pix[4*i+1] = background
-		pix[4*i+2] = background
-		pix[4*i+3] = background
-	}
-}
+func (w *World) Update(pix []byte) {
+	newArea := make([]bool, w.width*w.height)
 
-func (w *World) paint(pix []byte, pixelIndex int) {
-	pix[pixelIndex] = cellColor[0]
-	pix[pixelIndex+1] = cellColor[1]
-	pix[pixelIndex+2] = cellColor[2]
-	pix[pixelIndex+3] = cellColor[3]
+	for y := 0; y < w.height; y++ {
+		for x := 0; x < w.width; x++ {
+			index := indexInArea(x, y, w.width)
+			neighbourAmount := countNeighbours(w.area, x, y, w.width, w.height)
+			if w.area[index] {
+				if neighbourAmount == 2 || neighbourAmount == 3 {
+					newArea[index] = true
+				} else {
+					newArea[index] = false
+				}
+			} else {
+				if neighbourAmount == 3 {
+					newArea[index] = true
+				} else {
+					newArea[index] = false
+				}
+			}
+		}
+	}
+	w.area = newArea
+	w.Draw(pix)
 }
 
 type Game struct {
@@ -123,16 +162,19 @@ func (g *Game) paint() {
 }
 
 func (g *Game) Update() error {
+
 	g.paint()
 	g.world.Update(g.pixels)
+
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+
 	if g.pixels == nil {
 		g.pixels = make([]byte, screenWidth*screenHeight*4)
-		g.world.Draw(g.pixels)
 	}
+	g.world.Draw(g.pixels)
 	screen.WritePixels(g.pixels)
 }
 
@@ -141,10 +183,12 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
+	ebiten.SetTPS(1)
 	ebiten.SetWindowSize(screenFrameWidth, screenFrameHeight)
 	ebiten.SetWindowTitle("pixel")
 
 	game := &Game{world: NewWorld(screenWidth, screenHeight)}
+
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
