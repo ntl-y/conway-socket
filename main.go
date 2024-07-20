@@ -1,10 +1,10 @@
 package main
 
 import (
-	_ "image/jpeg"
 	"log"
 	"math"
 	"math/rand"
+	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -103,10 +103,9 @@ func countNeighbours(area []bool, x int, y int, width int, height int) int {
 	neighbours := 0
 
 	directions := [][2]int{
-		{0, 1},  // north
-		{0, -1}, //south
-		{-1, 0}, // west
-		{1, 0},  //east
+		{-1, -1}, {-1, 0}, {-1, 1},
+		{0, -1}, {0, 1},
+		{1, -1}, {1, 0}, {1, 1},
 	}
 
 	for _, dir := range directions {
@@ -150,21 +149,28 @@ func (w *World) Update(pix []byte) {
 type Game struct {
 	world  *World
 	pixels []byte
+	mu     sync.Mutex
 }
 
 func (g *Game) paint() {
 	mx, my := ebiten.CursorPosition()
 
-	currPixel := indexOfPixel(mx, my, g.world.width)
-	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && g.pixels[currPixel] == 0 {
-		g.world.paint(g.pixels, currPixel)
+	if mx >= 0 && mx < g.world.width && my >= 0 && my < g.world.height {
+		currPixel := indexOfPixel(mx, my, g.world.width)
+		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && g.pixels[currPixel] == 0 {
+			g.mu.Lock()
+			g.world.paint(g.pixels, currPixel)
+			g.mu.Unlock()
+		}
 	}
 }
 
 func (g *Game) Update() error {
-
-	g.paint()
+	g.mu.Lock()
 	g.world.Update(g.pixels)
+	g.mu.Unlock()
+
+	go g.paint()
 
 	return nil
 }
@@ -174,6 +180,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	if g.pixels == nil {
 		g.pixels = make([]byte, screenWidth*screenHeight*4)
 	}
+
 	g.world.Draw(g.pixels)
 	screen.WritePixels(g.pixels)
 }
@@ -183,7 +190,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
-	ebiten.SetTPS(1)
+	ebiten.SetTPS(10)
 	ebiten.SetWindowSize(screenFrameWidth, screenFrameHeight)
 	ebiten.SetWindowTitle("pixel")
 
