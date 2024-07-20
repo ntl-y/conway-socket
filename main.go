@@ -13,7 +13,7 @@ import (
 var (
 	cellColor  = []byte{byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Float64())}
 	background = byte(0)
-	pause      = true
+	pause      = false
 )
 
 const (
@@ -77,7 +77,7 @@ func (w *World) Draw(pix []byte) {
 }
 
 func (w *World) paint(pix []byte, pixelIndex int) {
-	if len(pix) > 0 {
+	if len(pix) > 0 && pixelIndex < len(pix) {
 		x, y := pixelToCoords(pixelIndex, w.width)
 		w.area[indexInArea(x, y, w.width)] = true
 
@@ -90,7 +90,7 @@ func (w *World) paint(pix []byte, pixelIndex int) {
 
 func (w *World) erase(pix []byte, pixelIndex int) {
 
-	if len(pix) > 0 {
+	if len(pix) > 0 && pixelIndex < len(pix) {
 		x, y := pixelToCoords(pixelIndex, w.width)
 		w.area[indexInArea(x, y, w.width)] = false
 
@@ -160,9 +160,13 @@ func (g *Game) paint() {
 
 	if mx >= 0 && mx < g.world.width && my >= 0 && my < g.world.height {
 		currPixel := indexOfPixel(mx, my, g.world.width)
+		currPixelUp := indexOfPixel(mx, my+1, g.world.width)
+		currPixelRight := indexOfPixel(mx+1, my, g.world.width)
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && g.pixels[currPixel] == 0 {
 			g.mu.Lock()
 			g.world.paint(g.pixels, currPixel)
+			g.world.paint(g.pixels, currPixelUp)
+			g.world.paint(g.pixels, currPixelRight)
 			g.mu.Unlock()
 		}
 	}
