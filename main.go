@@ -7,18 +7,20 @@ import (
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 var (
 	cellColor  = []byte{byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Intn(256)), byte(rand.Float64())}
 	background = byte(0)
+	pause      = true
 )
 
 const (
 	screenFrameWidth       = 640
 	screenFrameHeight      = 480
-	screenWidth            = 128
-	screenHeight           = 96
+	screenWidth            = 64
+	screenHeight           = 48
 	maxLiveCellsPercentage = 0.5
 )
 
@@ -55,11 +57,11 @@ func NewWorld(width int, height int) *World {
 	}
 
 	/////
-	for i := 0; i < w.maxLiveCells; i++ {
-		x := rand.Intn(width)
-		y := rand.Intn(height)
-		w.area[indexInArea(x, y, width)] = true
-	}
+	// for i := 0; i < w.maxLiveCells; i++ {
+	// 	x := rand.Intn(width)
+	// 	y := rand.Intn(height)
+	// 	w.area[indexInArea(x, y, width)] = true
+	// }
 	/////
 	return w
 }
@@ -103,9 +105,7 @@ func countNeighbours(area []bool, x int, y int, width int, height int) int {
 	neighbours := 0
 
 	directions := [][2]int{
-		{-1, -1}, {-1, 0}, {-1, 1},
-		{0, -1}, {0, 1},
-		{1, -1}, {1, 0}, {1, 1},
+		{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1},
 	}
 
 	for _, dir := range directions {
@@ -153,6 +153,9 @@ type Game struct {
 }
 
 func (g *Game) paint() {
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+		pause = !pause
+	}
 	mx, my := ebiten.CursorPosition()
 
 	if mx >= 0 && mx < g.world.width && my >= 0 && my < g.world.height {
@@ -166,9 +169,12 @@ func (g *Game) paint() {
 }
 
 func (g *Game) Update() error {
-	g.mu.Lock()
-	g.world.Update(g.pixels)
-	g.mu.Unlock()
+
+	if !pause {
+		g.mu.Lock()
+		g.world.Update(g.pixels)
+		g.mu.Unlock()
+	}
 
 	go g.paint()
 
@@ -190,9 +196,9 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
-	ebiten.SetTPS(10)
+	ebiten.SetTPS(20)
 	ebiten.SetWindowSize(screenFrameWidth, screenFrameHeight)
-	ebiten.SetWindowTitle("pixel")
+	ebiten.SetWindowTitle("Game of Life")
 
 	game := &Game{world: NewWorld(screenWidth, screenHeight)}
 
