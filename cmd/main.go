@@ -1,36 +1,64 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"net/http"
+
+	"github.com/gorilla/websocket"
 )
 
-var addr = flag.String("addr", ":8080", "http service address")
+var (
+	clients []*websocket.Conn
+)
 
-func serveHome(w http.ResponseWriter, r *http.Request) {
-	log.Println(r.URL)
-	if r.URL.Path != "/" {
-		http.Error(w, "Not found", http.StatusNotFound)
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
+func listen(conn *websocket.Conn) {
+	for {
+		messageFromBufferType, messageFromBuffer, err := conn.ReadMessage()
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		log.Printf("%s send: %s", conn.RemoteAddr(), messageFromBuffer)
+
+		for _, client := range clients {
+			if err := client.WriteMessage(messageFromBufferType, messageFromBuffer); err != nil {
+				client.Close()
+				log.Println(err)
+				return
+			}
+		}
+	}
+}
+func websocketPage(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println(err)
 		return
 	}
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	http.ServeFile(w, r, "home.html")
+
+	clients = append(clients, conn)
+	log.Println(conn.RemoteAddr(), " Connected!")
+
+	listen(conn)
+}
+
+func home(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "index.html")
 }
 
 func main() {
-	flag.Parse()
-	hub := newHub()
-	go hub.run()
-	http.HandleFunc("/", serveHome)
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		serveWs(hub, w, r)
-	})
-	err := http.ListenAndServe(*addr, nil)
-	if err != nil {
-		log.Fatal("ListenAndServe: ", err)
-	}
+	http.HandleFunc("/game", websocketPage)
+	http.HandleFunc("/", home)
+
+	log.Println("server started at port :3000")
+	http.ListenAndServe(":3000", nil)
 }
