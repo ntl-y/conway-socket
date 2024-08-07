@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
 
 	"github.com/gorilla/websocket"
 )
@@ -73,9 +75,17 @@ func main() {
 	// http.HandleFunc("/game", websocketPage)
 	// http.HandleFunc("/", home)
 
-	fs := http.FileServer(http.Dir("static"))
-	http.Handle("/", fs)
+	cmd := exec.Command("sh", "-c", "env GOOS=js GOARCH=wasm go build -o static/game.wasm ./game")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
+	err := cmd.Run()
+	if err != nil {
+		log.Fatalf("Command execution failed: %v", err)
+	}
+
+	fs := http.FileServer(http.Dir("./static"))
+	http.Handle("/", fs)
 	log.Println("server started at port :8080")
 	http.ListenAndServe(":8080", nil)
 }

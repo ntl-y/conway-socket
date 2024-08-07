@@ -21,7 +21,7 @@ const (
 	screenFrameHeight      = 480
 	screenWidth            = 64
 	screenHeight           = 48
-	maxLiveCellsPercentage = 0.5
+	maxLiveCellsPercentage = 0.2
 )
 
 func indexOfPixel(x, y, screenWidth int) int {
@@ -41,17 +41,11 @@ func indexInArea(x, y, width int) int {
 	return y*width + x
 }
 
-type Player struct {
-	ID    string
-	color []byte
-}
-
 type World struct {
 	width        int
 	height       int
 	area         []bool
 	maxLiveCells int
-	players      map[string]*Player
 }
 
 func NewWorld(width int, height int) *World {
@@ -60,16 +54,15 @@ func NewWorld(width int, height int) *World {
 		height:       height,
 		area:         make([]bool, width*height),
 		maxLiveCells: int(math.Round(maxLiveCellsPercentage * float64(width) * float64(height))),
-		players:      make(map[string]*Player),
 	}
 
-	/////
-	// for i := 0; i < w.maxLiveCells; i++ {
-	// 	x := rand.Intn(width)
-	// 	y := rand.Intn(height)
-	// 	w.area[indexInArea(x, y, width)] = true
-	// }
-	/////
+	/// begin cells
+	for i := 0; i < w.maxLiveCells; i++ {
+		x := rand.Intn(width)
+		y := rand.Intn(height)
+		w.area[indexInArea(x, y, width)] = true
+	}
+	///
 	return w
 }
 
